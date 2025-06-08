@@ -8,10 +8,10 @@ import sys
 from pathlib import Path
 from typing import Optional, List
 
-from .mtp_client import MTPClient
-from .sync import SyncEngine
-from .utils.prompt import prompt_choice, prompt_yes_no, display_progress
-from .config import DEFAULT_EXECUTION_PLAN, LOG_FILE
+from mtp_client import MTPClient
+from sync import SyncEngine
+from utils.prompt import prompt_choice, prompt_yes_no, display_progress
+from config import DEFAULT_EXECUTION_PLAN, LOG_FILE
 
 
 # Configure logging

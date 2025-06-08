@@ -6,7 +6,7 @@ import random
 import logging
 from functools import wraps
 from typing import TypeVar, Callable, Any
-from ..config import MAX_RETRIES, RETRY_BACKOFF_FACTOR
+from config import MAX_RETRIES, RETRY_BACKOFF_FACTOR
 
 # Type variable for generic function
 T = TypeVar('T')

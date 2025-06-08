@@ -9,9 +9,9 @@ import tempfile
 from ctypes import c_int, c_char_p, c_uint32, c_uint64, c_void_p, POINTER, Structure, c_uint8, c_uint16
 from pathlib import Path
 from typing import List, Dict, Optional, Tuple, Any, Union
-from .models import FolderNode, FileNode, IDEntry, PathMap, IDMap
-from .utils.retries import with_retry
-from .config import TEMP_DIR
+from models import FolderNode, FileNode, IDEntry, PathMap, IDMap
+from utils.retries import with_retry
+from config import TEMP_DIR
 
 
 # Configure logger
