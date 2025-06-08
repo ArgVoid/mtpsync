@@ -7,7 +7,7 @@ import tempfile
 from pathlib import Path
 import pytest
 
-from mtpsync.utils.checksum import (
+from utils.checksum import (
     calculate_checksum, 
     calculate_checksum_from_fileobj,
     batch_calculate_checksums

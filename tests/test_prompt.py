@@ -6,7 +6,7 @@ import io
 import sys
 from unittest.mock import patch
 
-from mtpsync.utils.prompt import prompt_choice, prompt_yes_no, display_progress
+from utils.prompt import prompt_choice, prompt_yes_no, display_progress
 
 
 @patch("builtins.input")

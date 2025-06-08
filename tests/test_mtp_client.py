@@ -10,9 +10,9 @@ import ctypes
 from unittest.mock import MagicMock, patch, PropertyMock
 from ctypes import c_int, c_char_p, c_uint32, c_uint64, c_void_p, POINTER, Structure, c_uint8, byref
 
-from mtpsync.tests.fixtures.constants import TEST_STORAGE_ID
-
-from mtpsync.mtp_client import MTPClient, LIBMTP_raw_device_struct, LIBMTP_file_struct, LIBMTP_folder_struct
+from mtp_client import MTPClient, LIBMTP_raw_device_struct, LIBMTP_file_struct, LIBMTP_folder_struct
+from models import FolderNode, FileNode, IDEntry
+from tests.fixtures.constants import TEST_STORAGE_ID
 
 
 class TestMTPClient:
@@ -33,7 +33,7 @@ class TestMTPClient:
         # Check that init was called
         mock_lib.LIBMTP_Init.assert_called_once()
     
-    @patch('mtpsync.mtp_client.MTPClient._load_libmtp')
+    @patch('mtp_client.MTPClient._load_libmtp')
     def test_detect_devices(self, mock_load_libmtp):
         """Test device detection."""
         # Create mock lib and raw device
@@ -99,7 +99,7 @@ class TestMTPClient:
         assert devices[0]["product"] == "TestProduct"
         assert devices[0]["serial"] == "123456789"
     
-    @patch('mtpsync.mtp_client.MTPClient._load_libmtp')
+    @patch('mtp_client.MTPClient._load_libmtp')
     def test_build_file_tree(self, mock_load_libmtp):
         """Test building file tree from folders and files."""
         # Create mock lib
@@ -185,7 +185,7 @@ class TestMTPClient:
         assert 100 in id_map  # test.txt file
         assert id_map[100].full_path == "/Documents/test.txt"
     
-    @patch('mtpsync.mtp_client.MTPClient._load_libmtp')
+    @patch('mtp_client.MTPClient._load_libmtp')
     def test_download(self, mock_load_libmtp):
         """Test downloading a file."""
         # Create mock lib
@@ -206,7 +206,7 @@ class TestMTPClient:
         client.device = MagicMock()
         
         # Add file to id_map
-        from mtpsync.models import FileNode, IDEntry
+        from models import FileNode, IDEntry
         file_node = FileNode(200, 16)
         client.id_map = {
             200: IDEntry(file_node, "/path/to/file.txt", None)
@@ -225,7 +225,7 @@ class TestMTPClient:
                 content = f.read()
                 assert content == b"Test file content"
     
-    @patch('mtpsync.mtp_client.MTPClient._load_libmtp')
+    @patch('mtp_client.MTPClient._load_libmtp')
     def test_upload(self, mock_load_libmtp):
         """Test uploading a file."""
         # Create mock lib
@@ -258,7 +258,7 @@ class TestMTPClient:
         
         try:
             # Add parent folder to id_map
-            from mtpsync.models import FolderNode, IDEntry
+            from models import FolderNode, IDEntry
             folder_node = FolderNode(400)
             client.id_map = {
                 400: IDEntry(folder_node, "/destination/folder", None)
@@ -279,7 +279,7 @@ class TestMTPClient:
 @pytest.fixture
 def mock_mtp_client():
     """Fixture for a mocked MTP client."""
-    with patch('mtpsync.mtp_client.MTPClient._load_libmtp') as mock_load:
+    with patch('mtp_client.MTPClient._load_libmtp') as mock_load:
         mock_lib = MagicMock()
         mock_load.return_value = mock_lib
         

@@ -5,7 +5,7 @@ import hashlib
 from pathlib import Path
 from typing import Literal, BinaryIO, Optional
 import concurrent.futures
-from ..config import CHECKSUM_ALGORITHM, MAX_THREADS
+from config import CHECKSUM_ALGORITHM, MAX_THREADS
 
 
 def calculate_checksum(

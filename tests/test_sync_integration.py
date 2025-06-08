@@ -9,10 +9,10 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from mtpsync.sync import SyncEngine
-from mtpsync.models import FolderNode, FileNode, IDEntry
-from mtpsync.tests.fixtures.mock_mtp_client import MockMTPClient
-from mtpsync.tests.fixtures.constants import TEST_STORAGE_ID
+from sync import SyncEngine
+from models import FolderNode, FileNode, IDEntry
+from tests.fixtures.mock_mtp_client import MockMTPClient
+from tests.fixtures.constants import TEST_STORAGE_ID
 
 
 @pytest.fixture

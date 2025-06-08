@@ -5,7 +5,7 @@ import pytest
 from unittest.mock import Mock, patch
 import time
 
-from mtpsync.utils.retries import with_retry
+from utils.retries import with_retry
 
 
 def test_with_retry_success_first_attempt():

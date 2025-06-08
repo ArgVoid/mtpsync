@@ -2,7 +2,7 @@
 Unit tests for models.py
 """
 import pytest
-from mtpsync.models import FileNode, FolderNode, IDEntry
+from models import FolderNode, FileNode, IDEntry
 
 
 def test_file_node_creation():

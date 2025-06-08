@@ -5,7 +5,7 @@ import os
 import tempfile
 from pathlib import Path
 
-from mtpsync.models import FolderNode, FileNode, IDEntry, PathMap, IDMap
+from models import FolderNode, FileNode, IDEntry, PathMap, IDMap
 
 
 class MockMTPClient:

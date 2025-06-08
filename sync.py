@@ -11,15 +11,15 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Dict, List, Tuple, Optional, Set, Union, Literal
 
-from .config import (
+from config import (
     DEFAULT_EXECUTION_PLAN,
     MAX_THREADS,
     DATA_DIR,
     TEMP_DIR
 )
-from .models import PathMap, IDMap, FolderNode, FileNode, IDEntry
-from .mtp_client import MTPClient
-from .utils.checksum import calculate_checksum, batch_calculate_checksums
+from models import PathMap, IDMap, FolderNode, FileNode, IDEntry
+from mtp_client import MTPClient
+from utils.checksum import calculate_checksum, batch_calculate_checksums
 
 
 # Configure logger
