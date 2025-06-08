@@ -42,11 +42,10 @@ def mock_mtp_client():
     """Create a mock MTP client."""
     client = MockMTPClient()
     
-    # Add root directory
-    client.add_folder("/")
+    # The root directory is already added in the MockMTPClient constructor
     
-    # Add example file to root
-    client.add_file("/existing_file.txt", 20, 1000, b"Existing file content")
+    # Add example file to root (parent ID 0 for root)
+    client.add_file("/existing_file.txt", 20, 0, b"Existing file content")
     
     return client
 
@@ -110,8 +109,9 @@ def test_execute_flow(temp_source_dir, mock_mtp_client, tmp_path):
         storage_id=TEST_STORAGE_ID  # Use consistent test storage ID
     )
     
-    # Add destination root
+    # Add destination root and make sure it's in path_map
     root_id = mock_mtp_client.add_folder("/test_dest")
+    mock_mtp_client.path_map["/test_dest/"] = mock_mtp_client.id_map[root_id].element
     
     # Execute plan
     success, retry_path = sync_engine.execute(plan_path)

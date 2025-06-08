@@ -17,7 +17,7 @@ from .config import (
     DATA_DIR,
     TEMP_DIR
 )
-from .models import PathMap, IDMap, FolderNode, FileNode
+from .models import PathMap, IDMap, FolderNode, FileNode, IDEntry
 from .mtp_client import MTPClient
 from .utils.checksum import calculate_checksum, batch_calculate_checksums
 
@@ -137,6 +137,12 @@ class SyncEngine:
         # Then, create all files
         for rel_path, entry_type in execution_plan.items():
             if entry_type == "file":
+                # Skip files in failed directories
+                parent_path = os.path.dirname(rel_path)
+                if parent_path and parent_path + '/' in failed_entries:
+                    failed_entries[rel_path] = entry_type
+                    continue
+                
                 success = self._sync_file(rel_path)
                 if not success:
                     failed_entries[rel_path] = entry_type
@@ -270,7 +276,15 @@ class SyncEngine:
             
         # Ensure parent directories exist
         current_path = self.dest_path
-        current_id = 0  # Assume root ID is 0
+        
+        # Get the root folder ID from the destination path
+        if current_path in self.mtp_client.path_map:
+            current_id = self.mtp_client.path_map[current_path].id
+        elif current_path + '/' in self.mtp_client.path_map:
+            current_id = self.mtp_client.path_map[current_path + '/'].id
+        else:
+            logger.error(f"Root path not found in path_map: {current_path}")
+            return False
         
         for part in path_parts:
             if not part:  # Skip empty parts
@@ -292,14 +306,21 @@ class SyncEngine:
                     
                     # Update maps
                     new_folder = FolderNode(new_id)
+                    
+                    # Ensure directory paths have trailing slash
+                    next_path_with_slash = next_path.rstrip('/') + '/'
+                    
+                    # Update path_map with both versions for compatibility
                     self.mtp_client.path_map[next_path] = new_folder
+                    self.mtp_client.path_map[next_path_with_slash] = new_folder
                     
                     # Get parent folder
                     parent = None
                     if current_id in self.mtp_client.id_map:
                         parent = self.mtp_client.id_map[current_id].element
                         
-                    self.mtp_client.id_map[new_id] = IDEntry(new_folder, next_path, parent)
+                    # Store IDEntry with trailing slash for directories
+                    self.mtp_client.id_map[new_id] = IDEntry(new_folder, next_path_with_slash, parent)
                     
                     current_id = new_id
                     
@@ -323,7 +344,7 @@ class SyncEngine:
         """
         source_path = self.source_dir / rel_path
         
-        if not source_path.exists():
+        if not source_path.exists() or not source_path.is_file():
             logger.error(f"Source file not found: {source_path}")
             return False
         
@@ -332,23 +353,30 @@ class SyncEngine:
         if parent_rel_path:
             parent_rel_path += "/"
             
-        parent_dest_path = os.path.normpath(f"{self.dest_path}/{parent_rel_path}")
+        # Handle root directory specially
+        if not parent_rel_path:
+            parent_dest_path = self.dest_path
+        else:
+            parent_dest_path = os.path.normpath(f"{self.dest_path}/{parent_rel_path}")
         
         # Ensure parent directory exists
         if not self._ensure_directory(parent_rel_path):
             logger.error(f"Failed to create parent directory {parent_rel_path}")
             return False
         
-        # Get parent ID
-        if parent_dest_path not in self.mtp_client.path_map:
+        # Get parent folder ID
+        parent_dest_path_with_slash = parent_dest_path + '/'
+        if parent_dest_path not in self.mtp_client.path_map and parent_dest_path_with_slash not in self.mtp_client.path_map:
             logger.error(f"Parent path not found in path_map: {parent_dest_path}")
             return False
+            
+        # Use the path that exists in path_map
+        parent_dest_path = parent_dest_path_with_slash if parent_dest_path_with_slash in self.mtp_client.path_map else parent_dest_path
             
         parent_node = self.mtp_client.path_map[parent_dest_path]
         if not isinstance(parent_node, FolderNode):
             logger.error(f"Parent path is not a folder: {parent_dest_path}")
             return False
-            
         parent_id = parent_node.id
         
         try:
@@ -383,6 +411,9 @@ class SyncEngine:
             self.mtp_client.id_map[new_id] = IDEntry(
                 file_node, dest_full_path, parent_node
             )
+            
+            # Update path_map
+            self.mtp_client.path_map[dest_full_path] = file_node
             
             return True
             

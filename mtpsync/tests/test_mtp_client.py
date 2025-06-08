@@ -1,6 +1,10 @@
 """
 Tests for mtp_client.py using mocks to avoid hardware dependencies.
 """
+import os
+import tempfile
+from pathlib import Path
+
 import pytest
 import ctypes
 from unittest.mock import MagicMock, patch, PropertyMock
@@ -127,9 +131,11 @@ class TestMTPClient:
         
         # Mock the Get_Folder_List function to return our structure
         def mock_get_folder_list(device):
+            # Return mock folder list
             return ctypes.pointer(root_folder)
             
         client._get_folder_list = mock_get_folder_list
+        client.device = MagicMock()  # Add mock device
         
         # Create mock file structure
         file_struct = LIBMTP_file_struct()
@@ -228,8 +234,15 @@ class TestMTPClient:
         
         # Configure the mock lib's upload function
         def mock_send_file(device, source_path, file_struct_ptr, progress_func, data):
-            # Update the file_struct item_id to simulate successful upload
-            file_struct_ptr.contents.item_id = 300
+            # Update the file struct to simulate successful upload
+            struct_ptr = ctypes.cast(file_struct_ptr, POINTER(LIBMTP_file_struct))
+            struct_ptr.contents.item_id = 300
+            struct_ptr.contents.parent_id = 400
+            struct_ptr.contents.storage_id = TEST_STORAGE_ID
+            struct_ptr.contents.filename = c_char_p(b"test.txt")
+            struct_ptr.contents.filesize = 1024
+            struct_ptr.contents.filetype = 1
+            struct_ptr.contents.next = None
             return 0
             
         mock_lib.LIBMTP_Send_File_From_File = mock_send_file

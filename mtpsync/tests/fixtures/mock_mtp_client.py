@@ -9,30 +9,45 @@ from mtpsync.models import FolderNode, FileNode, IDEntry, PathMap, IDMap
 
 
 class MockMTPClient:
-    """Mock MTP client for testing the sync engine."""
-    
+    """Mock MTP client for testing."""
     def __init__(self):
-        """Initialize mock MTP client with empty maps."""
-        self.path_map = {}
-        self.id_map = {}
-        self.next_id = 1000
+        self.next_id = 1
+        self.folders = {}
+        self.files = {}
+        self.created_folders = {}
         self.downloads = {}  # Mapping of file_id to content
         self.uploads = {}    # Mapping of parent_id to {filename: content}
-        self.created_folders = {}  # Mapping of parent_id to folder names
+        self.id_map = {}  # IDMap (id -> IDEntry)
+        self.path_map = {}  # PathMap (path -> id)
+        
+        # Initialize root folder with ID 0
+        root_folder = FolderNode(0)
+        self.id_map[0] = IDEntry(root_folder, "/", None)
+        self.path_map["/"] = root_folder
     
     def add_folder(self, path: str, parent_id: int = 0) -> int:
         """Add a folder to the mock structure."""
         folder_id = self.next_id
         self.next_id += 1
         
+        # Create folder node
         folder_node = FolderNode(folder_id)
-        self.path_map[path] = folder_node
+        folder_node.children = {}
         
+        # Get parent folder
         parent = None
         if parent_id in self.id_map:
             parent = self.id_map[parent_id].element
         
-        self.id_map[folder_id] = IDEntry(folder_node, path, parent)
+        # Normalize path
+        path = path.rstrip("/") + "/"
+        
+        # Create ID entry
+        entry = IDEntry(folder_node, path, parent)
+        
+        # Update maps
+        self.id_map[folder_id] = entry
+        self.path_map[path] = folder_node
         
         # Update parent's children
         if parent_id in self.id_map:
@@ -48,24 +63,32 @@ class MockMTPClient:
         file_id = self.next_id
         self.next_id += 1
         
+        # Create file node
         file_node = FileNode(file_id, size)
         
         # Store the file content for later download
         if content is not None:
             self.downloads[file_id] = content
         
-        # Get parent folder for children update
+        # Get parent folder
         parent = None
         if parent_id in self.id_map:
             parent = self.id_map[parent_id].element
+            if not isinstance(parent, FolderNode):
+                raise ValueError(f"Parent ID {parent_id} is not a folder")
         
-        # Add to id_map
-        self.id_map[file_id] = IDEntry(file_node, path, parent)
+        # Create ID entry
+        entry = IDEntry(file_node, path, parent)
+        
+        # Update maps
+        self.id_map[file_id] = entry
+        self.path_map[path] = file_node
         
         # Update parent's children
-        if parent_id in self.id_map and isinstance(parent, FolderNode):
+        if parent_id in self.id_map:
+            parent_entry = self.id_map[parent_id]
             filename = os.path.basename(path)
-            parent.children[filename] = file_node
+            parent_entry.element.children[filename] = file_node
         
         return file_id
     
@@ -124,14 +147,18 @@ class MockMTPClient:
         # Store created folder
         if parent_id not in self.created_folders:
             self.created_folders[parent_id] = []
-        self.created_folders[parent_id].append(folder_name)
+        self.created_folders[parent_id].append(folder_name.rstrip('/'))
         
         # Create folder node
         parent_entry = self.id_map[parent_id]
-        parent_path = parent_entry.full_path
-        folder_path = f"{parent_path}/{folder_name}"
-        if not folder_path.endswith("/"):
-            folder_path += "/"
+        parent_path = parent_entry.full_path.rstrip('/')
+        folder_path = f"{parent_path}/{folder_name.strip('/')}"
+        
+        # Ensure trailing slash for folders
+        folder_path = folder_path.rstrip('/') + '/'
+        
+        # Normalize path to avoid double slashes
+        folder_path = folder_path.replace("//", "/")
         
         return self.add_folder(folder_path, parent_id)
     

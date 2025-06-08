@@ -253,7 +253,7 @@ class MTPClient:
             raise RuntimeError("No device connected")
         
         # Get folder list first
-        folders = self._get_folder_list()
+        folders = self._get_folder_list(self.device)
         
         # Create path_map and id_map
         path_map: PathMap = {}
@@ -263,10 +263,11 @@ class MTPClient:
         self._process_folders(folders, path_map, id_map, base_path)
         
         # Get files within folders
-        for folder_id in id_map:
+        folder_ids = list(id_map.keys())
+        for folder_id in folder_ids:
             entry = id_map[folder_id]
             if isinstance(entry.element, FolderNode):
-                files = self._get_files_in_folder(storage_id, folder_id)
+                files = self._get_files_in_folder(self.device, storage_id, folder_id)
                 self._process_files(files, entry.element, id_map, entry.full_path)
         
         self.path_map = path_map
