@@ -1,0 +1,5 @@
+{
+  "subdir/": "dir",
+  "file1.txt": "file",
+  "bad_file.txt": "file"
+}
