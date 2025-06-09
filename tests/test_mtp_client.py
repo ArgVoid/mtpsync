@@ -44,11 +44,8 @@ class TestMTPClient:
         def mock_detect(raw_devices_ptr, num_devices_ptr):
             # Create a single device for testing
             device = LIBMTP_raw_device_struct()
-            device.vendor_id = 0x1234
-            device.product_id = 0x5678
-            device.vendor = c_char_p(b"TestVendor")
-            device.product = c_char_p(b"TestProduct")
-            device.serial = c_char_p(b"123456789")
+            device.bus_location = 1
+            device.devnum = 2
             
             # Create an array of devices and set the pointer
             devices_array = (LIBMTP_raw_device_struct * 1)()
@@ -81,9 +78,6 @@ class TestMTPClient:
                 {
                     "vendor_id": 0x1234,
                     "product_id": 0x5678,
-                    "vendor": "TestVendor",
-                    "product": "TestProduct",
-                    "serial": "123456789",
                     "bus_location": 1,
                     "device_num": 2,
                     "raw_device": MagicMock()
@@ -95,9 +89,8 @@ class TestMTPClient:
         devices = client.detect_devices()
         
         assert len(devices) == 1
-        assert devices[0]["vendor"] == "TestVendor"
-        assert devices[0]["product"] == "TestProduct"
-        assert devices[0]["serial"] == "123456789"
+        assert devices[0]["vendor_id"] == 0x1234
+        assert devices[0]["product_id"] == 0x5678
     
     @patch('mtp_client.MTPClient._load_libmtp')
     def test_build_file_tree(self, mock_load_libmtp):

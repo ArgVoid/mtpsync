@@ -14,17 +14,19 @@ from utils.prompt import prompt_choice, prompt_yes_no, display_progress
 from config import DEFAULT_EXECUTION_PLAN, LOG_FILE
 
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler(LOG_FILE),
-        logging.StreamHandler(sys.stdout)
-    ]
-)
-
-logger = logging.getLogger(__name__)
+def setup_logging(log_level: str) -> None:
+    """Configure logging with the specified level."""
+    level = getattr(logging, log_level.upper(), logging.INFO)
+    logging.basicConfig(
+        level=level,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        handlers=[
+            logging.FileHandler(LOG_FILE),
+            logging.StreamHandler(sys.stdout)
+        ]
+    )
+    logger = logging.getLogger(__name__)
+    logger.debug(f"Logging initialized at level {log_level}")
 
 
 def setup_arg_parser() -> argparse.ArgumentParser:
@@ -35,8 +37,8 @@ def setup_arg_parser() -> argparse.ArgumentParser:
         Configured ArgumentParser instance
     """
     parser = argparse.ArgumentParser(
-        description='MTP Directory Synchronization Service',
-        prog='mtpsync'
+        prog="mtpsync",
+        description="MTP Directory Synchronization Service"
     )
     
     parser.add_argument(
@@ -88,36 +90,48 @@ def setup_arg_parser() -> argparse.ArgumentParser:
         type=Path
     )
     
+    parser.add_argument(
+        '--log-level',
+        choices=['debug', 'info', 'warning', 'error', 'critical'],
+        default='info',
+        help='Set the logging level (default: info)'
+    )
+    
     return parser
 
 
 def select_device(mtp_client: MTPClient) -> dict:
-    """
-    Detect and prompt user to select an MTP device.
+    """Select MTP device to use.
     
     Args:
         mtp_client: MTP client instance
         
     Returns:
-        Selected device info
+        Selected device info dictionary
     """
     devices = mtp_client.detect_devices()
     
     if not devices:
-        logger.error("No MTP devices detected")
-        print("Error: No MTP devices detected. Please connect a device and try again.")
-        sys.exit(1)
-    
+        raise RuntimeError("No MTP devices found")
+        
     if len(devices) == 1:
         device = devices[0]
-        print(f"Using device: {device['vendor']} {device['product']}")
+        print("Using first available MTP device")
         return device
-    
-    # Format device info for display
-    def format_device(device):
-        return f"{device['vendor']} {device['product']} ({device['serial']})"
-    
-    return prompt_choice("Select MTP device:", devices, format_device)
+        
+    print("\nAvailable devices:")
+    for i, device in enumerate(devices):
+        print(f"{i+1}. MTP device {i+1}")
+        
+    while True:
+        try:
+            choice = int(input("\nSelect device (1-{len(devices)}): "))
+            if 1 <= choice <= len(devices):
+                return devices[choice-1]
+        except ValueError:
+            pass
+            
+        print(f"\nInvalid choice. Please enter a number between 1 and {len(devices)}")
 
 
 def select_storage(mtp_client: MTPClient, storage_id: Optional[int] = None) -> dict:
@@ -165,9 +179,12 @@ def select_storage(mtp_client: MTPClient, storage_id: Optional[int] = None) -> d
 
 
 def main():
-    """Main entry point for the CLI."""
-    parser = setup_arg_parser()
+    """Main entry point."""
+    parser = setup_arg_parser() 
     args = parser.parse_args()
+    
+    # Set up logging with specified level
+    logger = setup_logging(args.log_level)
     
     try:
         # Initialize MTP client
