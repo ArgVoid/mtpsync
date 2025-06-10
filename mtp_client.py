@@ -294,6 +294,9 @@ class MTPClient:
         
         # Get folder list first
         folders = self._get_folder_list(storage_id)
+        if not bool(folders):
+            self.lib.LIBMTP_Dump_Errorstack(self.device)
+            raise RuntimeError("folder list failed")
         
         # Create path_map and id_map
         path_map: PathMap = {}
