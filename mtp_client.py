@@ -19,28 +19,8 @@ logger = logging.getLogger(__name__)
 
 
 # Define opaque pointer type for device
-class LIBMTP_mtpdevice_t(Structure):
-    pass  # Opaque type, we don't need to know its fields
-
-
-# Define libmtp data structures
-class LIBMTP_raw_device_struct(Structure):
-    _fields_ = [
-        ("device_entry", c_void_p),
-        ("bus_location", c_uint32),
-        ("devnum", c_uint8),
-        ("device_flags", c_uint32),
-        ("vendor_id", c_uint16),
-        ("product_id", c_uint16),
-        ("vendor", c_char_p),
-        ("product", c_char_p),
-        ("serial", c_char_p)
-    ]
-
-
 class LIBMTP_devicestorage_struct(Structure):
     pass
-
 
 # Forward reference for self-referencing structures
 LIBMTP_devicestorage_struct._fields_ = [
@@ -56,6 +36,26 @@ LIBMTP_devicestorage_struct._fields_ = [
     ("next", POINTER(LIBMTP_devicestorage_struct))
 ]
 
+class LIBMTP_mtpdevice_t(Structure):
+    _pack_ = 1
+    _fields_ = [
+        ("object_bitsize", c_uint8),
+        ("_pad",          c_uint8 * 7),
+        ("params",        c_void_p),
+        ("usbinfo",       c_void_p),
+        ("storage",       POINTER(LIBMTP_devicestorage_struct)),
+    ]
+
+# Define libmtp data structures
+class LIBMTP_raw_device_struct(Structure):
+    _fields_ = [
+        ("device_entry", c_void_p),
+        ("bus_location", c_uint32),
+        ("devnum", c_uint8),
+        ("device_flags", c_uint32),
+        ("vendor_id", c_uint16),
+        ("product_id", c_uint16),
+    ]
 
 class LIBMTP_file_struct(Structure):
     pass
@@ -141,10 +141,12 @@ class MTPClient:
         lib.LIBMTP_Open_Raw_Device_Uncached.restype = POINTER(LIBMTP_mtpdevice_t)
         
         lib.LIBMTP_Get_Storage.argtypes = [POINTER(LIBMTP_mtpdevice_t), c_int]
-        lib.LIBMTP_Get_Storage.restype = POINTER(LIBMTP_devicestorage_struct)
+        lib.LIBMTP_Get_Storage.restype = c_int
         
-        lib.LIBMTP_Get_Folder_List.argtypes = [POINTER(LIBMTP_mtpdevice_t)]
-        lib.LIBMTP_Get_Folder_List.restype = POINTER(LIBMTP_folder_struct)
+        lib.LIBMTP_Get_Folder_List_For_Storage.argtypes = [
+            POINTER(LIBMTP_mtpdevice_t), c_uint32
+        ]
+        lib.LIBMTP_Get_Folder_List_For_Storage.restype  = POINTER(LIBMTP_folder_struct)
         
         lib.LIBMTP_Get_Files_And_Folders.argtypes = [
             POINTER(LIBMTP_mtpdevice_t),
@@ -246,75 +248,24 @@ class MTPClient:
         logger.debug(f"Using device at address: {device_addr:#x}")
         
         try:
-            logger.debug("Calling LIBMTP_Get_Storage")
-            storage = self.lib.LIBMTP_Get_Storage(self.device, 0)
-            
-            if not storage:
-                logger.warning("No storage found or LIBMTP_Get_Storage returned NULL")
-                # Return a minimal storage to allow testing to continue
-                return [{
-                    "id": 0,
-                    "desc": "Nintendo Switch Storage",
-                    "capacity": 1000000000,  # 1GB placeholder
-                    "free_space": 500000000   # 500MB placeholder
-                }]
-            
-            logger.debug("Successfully retrieved storage pointer")
-            storages = []
-            
-            try:
-                count = 0
-                current_storage = storage
-                
-                while current_storage:
-                    try:
-                        logger.debug(f"Processing storage #{count}")
-                        storage_obj = current_storage.contents
-                        
-                        # Get storage description safely
-                        desc = "Unknown"
-                        try:
-                            if storage_obj.storage_description:
-                                desc = storage_obj.storage_description.decode("utf-8")
-                        except Exception as e:
-                            logger.warning(f"Failed to decode storage description: {e}")
-                        
-                        storage_info = {
-                            "id": storage_obj.id,
-                            "desc": desc,
-                            "capacity": storage_obj.maximum_capacity,
-                            "free_space": storage_obj.free_space_in_bytes
-                        }
-                        
-                        logger.debug(f"Storage info: {storage_info}")
-                        storages.append(storage_info)
-                        
-                        # Check for next storage
-                        logger.debug("Checking for next storage")
-                        next_storage = storage_obj.next
-                        if not next_storage:
-                            logger.debug("No more storage devices")
-                            break
-                        
-                        current_storage = next_storage
-                        count += 1
-                        
-                    except Exception as e:
-                        logger.error(f"Error accessing storage contents: {e}")
-                        break
-                    
-            except Exception as e:
-                logger.error(f"Error traversing storage list: {e}")
-                # Return what we have so far rather than failing completely
-                if not storages:
-                    return [{
-                        "id": 0,
-                        "desc": "Nintendo Switch Storage (Fallback)",
-                        "capacity": 1000000000,
-                        "free_space": 500000000
-                    }]
-            
-            logger.debug(f"Found {len(storages)} storage devices")
+            rc = self.lib.LIBMTP_Get_Storage(self.device, 0)
+            if rc != 0:
+                raise RuntimeError(f"LIBMTP_Get_Storage failed (error {rc})")
+
+            storages   = []
+            storage_ptr = self.device.contents.storage
+            while bool(storage_ptr):
+                s = storage_ptr.contents
+                storages.append({
+                    "id": s.id,
+                    "desc": (s.storage_description or b"").decode(),
+                    "capacity": s.maximum_capacity,
+                    "free_space": s.free_space_in_bytes,
+                })
+                storage_ptr = s.next
+
+            if not storages:
+                raise RuntimeError("Device reported no storage (is it unlocked?)")
             return storages
             
         except Exception as e:
@@ -342,7 +293,7 @@ class MTPClient:
             raise RuntimeError("No device connected")
         
         # Get folder list first
-        folders = self._get_folder_list(self.device)
+        folders = self._get_folder_list(storage_id)
         
         # Create path_map and id_map
         path_map: PathMap = {}
@@ -356,16 +307,16 @@ class MTPClient:
         for folder_id in folder_ids:
             entry = id_map[folder_id]
             if isinstance(entry.element, FolderNode):
-                files = self._get_files_in_folder(self.device, storage_id, folder_id)
+                self._get_files_in_folder(storage_id, folder_id)
                 self._process_files(files, entry.element, id_map, entry.full_path)
         
         self.path_map = path_map
         self.id_map = id_map
         return path_map, id_map
     
-    def _get_folder_list(self) -> POINTER(LIBMTP_folder_struct):
+    def _get_folder_list(self, storage_id: int) -> POINTER(LIBMTP_folder_struct):
         """Get folder list from device."""
-        return self.lib.LIBMTP_Get_Folder_List(self.device)
+        return self.lib.LIBMTP_Get_Folder_List_For_Storage(self.device, storage_id)
     
     def _process_folders(self, folder_ptr: POINTER(LIBMTP_folder_struct), 
                         path_map: PathMap, id_map: IDMap, 
@@ -416,7 +367,7 @@ class MTPClient:
             self._process_folders(folder.sibling, path_map, id_map, current_path)
     
     def _get_files_in_folder(self, storage_id: int, folder_id: int) -> POINTER(LIBMTP_file_struct):
-        """Get files in a specific folder."""
+        """Return files *and* sub-folders under `folder_id` on `storage_id`."""
         return self.lib.LIBMTP_Get_Files_And_Folders(self.device, storage_id, folder_id)
     
     def _process_files(self, file_ptr: POINTER(LIBMTP_file_struct), 
